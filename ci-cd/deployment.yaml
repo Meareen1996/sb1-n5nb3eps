@@ -1,0 +1,87 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: helpcenter-h5
+spec:
+  selector:
+    app: helpcenter-h5
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: helpcenter-h5-ingress
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    # Keep ALB stable across deployments
+    alb.ingress.kubernetes.io/group.name: veoride-prod-alb
+    alb.ingress.kubernetes.io/group.order: '10'
+    # Health check settings
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+    # Tags for cost tracking
+    alb.ingress.kubernetes.io/tags: Environment=production,Service=helpcenter-h5
+spec:
+  rules:
+  - host: help-center.veoride.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: helpcenter-h5
+            port:
+              number: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helpcenter-h5-deployment
+spec:
+  selector:
+    matchLabels:
+      app: helpcenter-h5
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: helpcenter-h5
+    spec:
+      containers:
+      - name: helpcenter-h5
+        image: 488938767527.dkr.ecr.us-east-2.amazonaws.com/veo-service:helpcenter-h5-test
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5

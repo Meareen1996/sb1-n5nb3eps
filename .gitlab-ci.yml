@@ -1,0 +1,129 @@
+# Help Center H5 - GitLab CI/CD Pipeline
+#
+# Required CI/CD Variables (must be set in GitLab Settings → CI/CD → Variables):
+# - AWS_ACCESS_KEY_ID: AWS access key for ECR and EKS access
+# - AWS_SECRET_ACCESS_KEY: AWS secret key for authentication
+#
+# These variables are NOT defined in this file but must be set in GitLab:
+# Settings → CI/CD → Variables → Add Variable
+
+image: docker:24.0.5
+services:
+  - name: docker:24.0.5-dind
+    command: ["--tls=false"]
+
+stages:
+  - build
+  - package
+  - deploy
+
+variables:
+  # Docker configuration
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: "tcp://docker:2375"
+
+  # AWS configuration
+  AWS_DEFAULT_REGION: us-east-2
+  ECR_REGISTRY: 488938767527.dkr.ecr.us-east-2.amazonaws.com
+  SERVICE_NAME: helpcenter-h5
+
+# Build the application
+build:
+  stage: build
+  image: node:18-alpine
+  before_script:
+    - apk add --no-cache bash
+  script:
+    - bash ci-cd/package.sh
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+  only:
+    - master
+    - develop
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+
+# Build Docker image and push to ECR
+docker:build:
+  stage: package
+  before_script:
+    - apk add --no-cache aws-cli bash git curl py3-pip
+    - pip3 install awscli --upgrade
+    - aws --version
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "ERROR AWS_ACCESS_KEY_ID is not set" && exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "ERROR AWS_SECRET_ACCESS_KEY is not set" && exit 1)
+    - echo "AWS credentials are configured"
+    - echo "AWS Region $AWS_DEFAULT_REGION"
+  script:
+    - bash ci-cd/build.sh
+  dependencies:
+    - build
+  only:
+    - master
+    - develop
+
+# Deploy to Kubernetes (AWS EKS)
+deploy:eks:
+  stage: deploy
+  before_script:
+    - apk add --no-cache bash git curl py3-pip
+    - pip3 install awscli --upgrade
+    - aws --version
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "ERROR AWS_ACCESS_KEY_ID is not set" && exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "ERROR AWS_SECRET_ACCESS_KEY is not set" && exit 1)
+    - echo "AWS credentials are configured"
+    - echo "AWS Region $AWS_DEFAULT_REGION"
+  script:
+    - bash ci-cd/deploy.sh
+  dependencies:
+    - build
+  environment:
+    name: production
+    url: https://help-center.veoride.com
+  only:
+    - master
+
+deploy:eks:dev:
+  stage: deploy
+  before_script:
+    - apk add --no-cache bash git curl py3-pip
+    - pip3 install awscli --upgrade
+    - aws --version
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "ERROR AWS_ACCESS_KEY_ID is not set" && exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "ERROR AWS_SECRET_ACCESS_KEY is not set" && exit 1)
+    - echo "AWS credentials are configured"
+    - echo "AWS Region $AWS_DEFAULT_REGION"
+  script:
+    - bash ci-cd/deploy.sh
+  dependencies:
+    - build
+  only:
+    - develop
+  environment:
+    name: development
+    url: https://help-center-dev.veoride.com
+
+# Alternative deploy script using kube_deploy.sh (for manual/tag deployments)
+deploy:kube:
+  stage: deploy
+  before_script:
+    - apk add --no-cache bash git curl py3-pip
+    - pip3 install awscli --upgrade
+    - test -n "$AWS_ACCESS_KEY_ID" || (echo "ERROR AWS_ACCESS_KEY_ID is not set" && exit 1)
+    - test -n "$AWS_SECRET_ACCESS_KEY" || (echo "ERROR AWS_SECRET_ACCESS_KEY is not set" && exit 1)
+    - echo "AWS credentials are configured"
+    - echo "AWS Region $AWS_DEFAULT_REGION"
+  script:
+    - bash ci-cd/kube_deploy.sh
+  dependencies:
+    - build
+  only:
+    - tags
+  when: manual
+  environment:
+    name: $CI_COMMIT_REF_NAME
