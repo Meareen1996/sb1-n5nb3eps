@@ -8,6 +8,7 @@
  */
 
 import { envConfig } from '../config/env'
+import { mapCustomFields } from '../config/zendeskMapping'
 
 export interface ZendeskField {
   id: string
@@ -39,7 +40,8 @@ export interface ZendeskTicketForm {
 }
 
 export interface ZendeskSubmission {
-  formId: string
+  formId?: string | number
+  slug?: string
   fields: Record<string, any>
   attachments?: Array<{
     filename: string
@@ -52,17 +54,26 @@ class ZendeskService {
   private apiUrl: string
   private apiToken: string
   private env: 'development' | 'production'
+  private email?: string
+  private useProxy: boolean
+  private baseUrl: string
 
   constructor() {
     // Get environment-specific Zendesk configuration
     this.env = envConfig.env
     this.apiUrl = envConfig.zendesk.apiUrl
     this.apiToken = envConfig.zendesk.apiToken
+    this.email = envConfig.zendesk.email
+    this.useProxy = (envConfig as any).zendesk.useProxy ?? false
+    this.baseUrl = this.useProxy ? (envConfig as any).zendesk.proxyPath : this.apiUrl
 
     if (envConfig.isDevelopment) {
       console.log('🎫 Zendesk Service initialized')
       console.log('   Environment:', this.env)
       console.log('   API URL:', this.apiUrl)
+      console.log('   UseProxy:', this.useProxy)
+      console.log('   BaseURL:', this.baseUrl)
+      console.log('   Email set:', !!this.email)
     }
   }
 
@@ -77,8 +88,8 @@ class ZendeskService {
    * Fetch all available ticket forms from Zendesk
    */
   async getTicketForms(): Promise<ZendeskTicketForm[]> {
-    // If no API URL configured, return mock data
-    if (!this.apiUrl || !this.apiToken) {
+    // If no API URL configured and not using proxy, return mock data
+    if ((!this.apiUrl || !this.apiToken) && !this.useProxy) {
       console.warn('⚠️  Zendesk API not configured, using mock data')
       return this.getMockTicketForms()
     }
@@ -86,16 +97,21 @@ class ZendeskService {
     try {
       if (envConfig.isDevelopment) {
         console.log('📡 Fetching ticket forms from Zendesk...')
+        console.log('   Endpoint:', `${this.baseUrl}/api/v2/ticket_forms`)
+        console.log('   Auth:', this.authInfo())
       }
 
-      const response = await fetch(`${this.apiUrl}/api/v2/ticket_forms`, {
+      const response = await fetch(`${this.baseUrl}/api/v2/ticket_forms`, {
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          ...this.getAuthHeader(),
           'Content-Type': 'application/json',
         },
       })
 
       if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        console.error('❌ Fetch ticket forms failed:', response.status, response.statusText)
+        if (body) console.error('   Body:', body)
         throw new Error(`Failed to fetch ticket forms: ${response.statusText}`)
       }
 
@@ -119,17 +135,9 @@ class ZendeskService {
    * Submit a support ticket to Zendesk
    */
   async submitTicket(submission: ZendeskSubmission): Promise<{ success: boolean; ticketId?: string; error?: string }> {
-    // If no API configured, simulate success in development
-    if (!this.apiUrl || !this.apiToken) {
+    // If no API configured and not using proxy, return error
+    if ((!this.apiUrl || !this.apiToken) && !this.useProxy) {
       console.warn('⚠️  Zendesk API not configured')
-      if (envConfig.isDevelopment) {
-        console.log('🧪 Simulating ticket submission in development mode')
-        console.log('Submission data:', submission)
-        return {
-          success: true,
-          ticketId: `mock-${Date.now()}`,
-        }
-      }
       return {
         success: false,
         error: 'Zendesk API not configured',
@@ -139,34 +147,56 @@ class ZendeskService {
     try {
       if (envConfig.isDevelopment) {
         console.log('📤 Submitting ticket to Zendesk...')
-        console.log('Environment:', this.env)
+        console.log('   Environment:', this.env)
+        console.log('   Endpoint:', `${this.baseUrl}/api/v2/tickets.json`)
+        console.log('   Auth:', this.authInfo())
       }
 
-      const response = await fetch(`${this.apiUrl}/api/v2/requests`, {
+      const formIdNumber = typeof submission.formId === 'number' ? submission.formId : Number(submission.formId)
+      const payload: any = {
+        request: {
+          subject: submission.fields.subject || 'Support Request',
+          comment: {
+            body: submission.fields.description || '',
+            uploads: submission.attachments?.map(att => att.data) || [],
+          },
+          custom_fields: mapCustomFields({ slug: submission.slug, formId: submission.formId }, submission.fields),
+        },
+      }
+      if (Number.isFinite(formIdNumber)) {
+        payload.request.ticket_form_id = formIdNumber
+      }
+
+      const ticketPayload: any = {
+        ticket: {
+          subject: payload.request.subject,
+          comment: {
+            body: payload.request.comment.body,
+          },
+          custom_fields: payload.request.custom_fields,
+        },
+      }
+      if (Number.isFinite(formIdNumber)) {
+        ticketPayload.ticket.ticket_form_id = formIdNumber
+      }
+
+      const response = await fetch(`${this.baseUrl}/api/v2/tickets.json`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          ...this.getAuthHeader(),
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          request: {
-            ticket_form_id: submission.formId,
-            subject: submission.fields.subject || 'Support Request',
-            comment: {
-              body: submission.fields.description || '',
-              uploads: submission.attachments?.map(att => att.data) || [],
-            },
-            custom_fields: Object.entries(submission.fields)
-              .filter(([key]) => key !== 'subject' && key !== 'description')
-              .map(([key, value]) => ({
-                id: key,
-                value: value,
-              })),
-          },
-        }),
+        body: JSON.stringify(ticketPayload),
       })
 
       if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        console.error('❌ Submit ticket failed:', response.status, response.statusText)
+        if (body) console.error('   Body:', body)
+        if (response.status === 401) {
+          console.error('   Hint: verify email/token pair and Basic auth format (email/token:<API_TOKEN>)')
+        }
         throw new Error(`Failed to submit ticket: ${response.statusText}`)
       }
 
@@ -188,6 +218,17 @@ class ZendeskService {
         error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
+  }
+
+  private getAuthHeader(): Record<string, string> {
+    if (this.email && this.apiToken) {
+      const token = btoa(`${this.email}/token:${this.apiToken}`)
+      return { Authorization: `Basic ${token}` }
+    }
+    if (this.apiToken) {
+      return { Authorization: `Bearer ${this.apiToken}` }
+    }
+    return {}
   }
 
   /**
@@ -295,6 +336,14 @@ class ZendeskService {
         fields: [],
       },
     ]
+  }
+
+  private authInfo(): string {
+    const h = this.getAuthHeader().Authorization
+    if (!h) return 'none'
+    if (h.startsWith('Basic ')) return 'Basic'
+    if (h.startsWith('Bearer ')) return 'Bearer'
+    return 'unknown'
   }
 }
 

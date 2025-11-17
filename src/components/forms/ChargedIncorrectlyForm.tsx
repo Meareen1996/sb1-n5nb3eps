@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import FormLayout from './FormLayout'
+import { appBridge } from '../../services/appBridge'
 import { BaseFormFields, RadioGroup, ImageUpload } from './BaseFormFields'
+import { zendeskService } from '../../services/zendesk'
 
 interface ChargedIncorrectlyFormProps {
   onSuccess: () => void
+  formId?: number
+  slug: string
 }
 
-const ChargedIncorrectlyForm = ({ onSuccess }: ChargedIncorrectlyFormProps) => {
+const ChargedIncorrectlyForm = ({ onSuccess, formId, slug }: ChargedIncorrectlyFormProps) => {
   const [formData, setFormData] = useState({
     issue: 'I was charged incorrectly.',
     fullName: '',
@@ -26,16 +30,38 @@ const ChargedIncorrectlyForm = ({ onSuccess }: ChargedIncorrectlyFormProps) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted:', formData, images)
-    onSuccess()
+    const description = [
+      `Issue: ${formData.issue}`,
+      `Experience: ${formData.issueExperience}`,
+      formData.chargeDate && `Charge date: ${formData.chargeDate}`,
+      formData.chargeAmount && `Charge amount: ${formData.chargeAmount}`,
+      images.length > 0 && `Attached images: ${images.map(f => f.name).join(', ')}`,
+      formData.additionalDetails && `Details: ${formData.additionalDetails}`,
+      `User: ${formData.fullName} | ${formData.phoneCode} ${formData.phoneNumber} | ${formData.email}`,
+    ].filter(Boolean).join('\n')
+
+    const result = await zendeskService.submitTicket({
+      formId: formId,
+      slug,
+      fields: {
+        subject: formData.issue,
+        description,
+      },
+    })
+
+    if (result.success) {
+      onSuccess()
+    } else {
+      alert(result.error || 'Submit failed')
+    }
   }
 
   const showChargeFields = ['fare-incorrect', 'membership-incorrect', 'pass-incorrect', 'topup-didnt-go', 'overcharged-topup', 'fine-violation'].includes(formData.issueExperience)
 
   return (
-    <FormLayout onBack={() => window.history.back()} onSubmit={handleSubmit}>
+    <FormLayout onBack={() => appBridge.goBack()} onSubmit={handleSubmit}>
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           What is the issue?<span className="text-red-500">*</span>
@@ -77,14 +103,14 @@ const ChargedIncorrectlyForm = ({ onSuccess }: ChargedIncorrectlyFormProps) => {
               value={formData.chargeDate}
               onChange={(e) => handleFieldChange('chargeDate', e.target.value)}
               placeholder="02/07/2024"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
             />
             <input
               type="text"
               value={formData.chargeAmount}
               onChange={(e) => handleFieldChange('chargeAmount', e.target.value)}
               placeholder="$10.00"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
             />
           </div>
         </div>
@@ -101,7 +127,7 @@ const ChargedIncorrectlyForm = ({ onSuccess }: ChargedIncorrectlyFormProps) => {
           onChange={(e) => handleFieldChange('additionalDetails', e.target.value)}
           placeholder="Could you provide more details so we can better understand the issue?"
           rows={5}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm text-gray-600"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none text-sm text-gray-600"
         />
       </div>
     </FormLayout>

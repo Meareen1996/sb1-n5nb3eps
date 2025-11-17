@@ -1,16 +1,13 @@
 import { ChevronLeft } from 'lucide-react'
+import { appBridge } from '../services/appBridge'
 
-interface SuccessPageProps {
-  onBack: () => void
-}
-
-const SuccessPage = ({ onBack }: SuccessPageProps) => {
+const SuccessPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="flex items-center px-4 py-3">
           <button
-            onClick={onBack}
+            onClick={() => appBridge.goBack()}
             className="flex items-center text-gray-900 font-medium"
           >
             <ChevronLeft className="w-6 h-6 mr-1" />

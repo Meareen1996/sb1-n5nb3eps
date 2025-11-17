@@ -23,7 +23,7 @@ export const BaseFormFields = ({ formData, onFieldChange }: BaseFormFieldsProps)
           value={formData.fullName}
           onChange={(e) => onFieldChange('fullName', e.target.value)}
           placeholder="Enter your name"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
         />
       </div>
 
@@ -35,7 +35,7 @@ export const BaseFormFields = ({ formData, onFieldChange }: BaseFormFieldsProps)
           <select
             value={formData.phoneCode}
             onChange={(e) => onFieldChange('phoneCode', e.target.value)}
-            className="w-24 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            className="w-24 px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
           >
             <option value="+1">🇺🇸 +1</option>
             <option value="+86">🇨🇳 +86</option>
@@ -46,7 +46,7 @@ export const BaseFormFields = ({ formData, onFieldChange }: BaseFormFieldsProps)
             value={formData.phoneNumber}
             onChange={(e) => onFieldChange('phoneNumber', e.target.value)}
             placeholder="Enter phone number"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
           />
         </div>
       </div>
@@ -60,33 +60,14 @@ export const BaseFormFields = ({ formData, onFieldChange }: BaseFormFieldsProps)
           value={formData.email}
           onChange={(e) => onFieldChange('email', e.target.value)}
           placeholder="Enter your email"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
         />
       </div>
     </>
   )
 }
 
-interface SelectableFieldProps {
-  label: string
-  value: string
-  onRemove: () => void
-}
-
-export const SelectableField = ({ label, value, onRemove }: SelectableFieldProps) => {
-  return (
-    <div className="flex items-center justify-between px-4 py-3 border border-gray-300 rounded-lg bg-white">
-      <span className="text-sm text-gray-900">{value}</span>
-      <button
-        onClick={onRemove}
-        className="text-gray-400 hover:text-gray-600"
-        type="button"
-      >
-        <X className="w-5 h-5" />
-      </button>
-    </div>
-  )
-}
+ 
 
 interface RadioGroupProps {
   label: string
@@ -117,8 +98,17 @@ export const RadioGroup = ({ label, required, options, selectedValue, onChange }
                 value={option.value}
                 checked={selectedValue === option.value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-5 h-5 text-black focus:ring-2 focus:ring-black"
+                className="sr-only"
               />
+              <span
+                className={`inline-flex items-center justify-center w-5 h-5 rounded-full border ${
+                  selectedValue === option.value ? 'border-black' : 'border-gray-400'
+                }`}
+              >
+                {selectedValue === option.value && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-black" />
+                )}
+              </span>
               <span className="text-sm text-gray-900">{option.label}</span>
               {selectedValue === option.value && (
                 <button

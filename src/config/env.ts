@@ -13,6 +13,10 @@ export interface EnvConfig {
   zendesk: {
     apiUrl: string
     apiToken: string
+    email?: string
+    useProxy: boolean
+    proxyPath: string
+    fieldMap: Record<string, Record<string, number>>
   }
   supabase: {
     url: string
@@ -37,18 +41,30 @@ function getCurrentEnvironment(): Environment {
 /**
  * Get Zendesk configuration based on environment
  */
-function getZendeskConfig(env: Environment): { apiUrl: string; apiToken: string } {
+function getZendeskConfig(env: Environment): { apiUrl: string; apiToken: string; email?: string; useProxy: boolean; proxyPath: string; fieldMap: Record<string, Record<string, number>> } {
   if (env === 'production') {
-    return {
-      apiUrl: import.meta.env.VITE_ZENDESK_PROD_API_URL || '',
-      apiToken: import.meta.env.VITE_ZENDESK_PROD_API_TOKEN || '',
-    }
+    const apiUrl = (import.meta.env.VITE_ZENDESK_PROD_API_URL as string | undefined) || 'https://veoride.zendesk.com'
+    const apiToken = (import.meta.env.VITE_ZENDESK_PROD_API_TOKEN as string | undefined) || ''
+    const email = (import.meta.env.VITE_ZENDESK_PROD_EMAIL as string | undefined) || undefined
+    const useProxyRaw = import.meta.env.VITE_ZENDESK_PROD_USE_PROXY as string | undefined
+    const useProxy = useProxyRaw ? useProxyRaw === 'true' : true
+    const proxyPath = (import.meta.env.VITE_ZENDESK_PROD_PROXY_PATH as string | undefined) || '/zendesk'
+    const rawMap = (import.meta.env.VITE_ZENDESK_PROD_FIELD_MAP as string | undefined) || '{}'
+    let fieldMap: Record<string, Record<string, number>> = {}
+    try { fieldMap = JSON.parse(rawMap) } catch { fieldMap = {} }
+    return { apiUrl, apiToken, email, useProxy, proxyPath, fieldMap }
   }
 
-  return {
-    apiUrl: import.meta.env.VITE_ZENDESK_DEV_API_URL || '',
-    apiToken: import.meta.env.VITE_ZENDESK_DEV_API_TOKEN || '',
-  }
+  const apiUrl = (import.meta.env.VITE_ZENDESK_DEV_API_URL as string | undefined) || 'https://d3v-greenzonesupporthelp.zendesk.com'
+  const apiToken = (import.meta.env.VITE_ZENDESK_DEV_API_TOKEN as string | undefined) || ''
+  const email = (import.meta.env.VITE_ZENDESK_DEV_EMAIL as string | undefined) || undefined
+  const useProxyRaw = import.meta.env.VITE_ZENDESK_DEV_USE_PROXY as string | undefined
+  const useProxy = useProxyRaw ? useProxyRaw === 'true' : true
+  const proxyPath = (import.meta.env.VITE_ZENDESK_DEV_PROXY_PATH as string | undefined) || '/zendesk'
+  const rawMap = (import.meta.env.VITE_ZENDESK_DEV_FIELD_MAP as string | undefined) || '{}'
+  let fieldMap: Record<string, Record<string, number>> = {}
+  try { fieldMap = JSON.parse(rawMap) } catch { fieldMap = {} }
+  return { apiUrl, apiToken, email, useProxy, proxyPath, fieldMap }
 }
 
 /**
@@ -82,5 +98,7 @@ export const envConfig = createEnvConfig()
 if (envConfig.isDevelopment) {
   console.log('🔧 Environment:', envConfig.env)
   console.log('📍 Zendesk API:', envConfig.zendesk.apiUrl)
+  console.log('🔒 Zendesk useProxy:', envConfig.zendesk.useProxy)
+  console.log('🧭 FieldMap slugs:', Object.keys(envConfig.zendesk.fieldMap || {}))
   console.log('🗄️  Supabase:', envConfig.supabase.url)
 }

@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import FormLayout from './FormLayout'
+import { appBridge } from '../../services/appBridge'
 import { BaseFormFields, RadioGroup, ImageUpload } from './BaseFormFields'
+import { zendeskService } from '../../services/zendesk'
 
 interface RideNotEndedFormProps {
   onSuccess: () => void
+  formId?: number
+  slug: string
 }
 
-const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
+const RideNotEndedForm = ({ onSuccess, formId, slug }: RideNotEndedFormProps) => {
   const [formData, setFormData] = useState({
     issue: "My ride hasn't ended.",
     fullName: '',
@@ -46,16 +50,42 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
     handleFieldChange('tripTime', '')
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted:', formData, images)
-    onSuccess()
+    const description = [
+      `Issue: ${formData.issue}`,
+      formData.tripTime && `Trip: ${formData.tripTime}`,
+      `Vehicle: ${formData.vehicleNumber}`,
+      `Ride minutes: ${formData.rideMinutes}`,
+      `Vehicle parked: ${formData.vehicleParked}`,
+      `Experiencing issues: ${formData.experiencingIssues}`,
+      formData.tookEndRidePhoto && `End ride photo: ${formData.tookEndRidePhoto}`,
+      formData.errorMessage && `Error message: ${formData.errorMessage}`,
+      images.length > 0 && `Attached images: ${images.map(f => f.name).join(', ')}`,
+      formData.additionalDetails && `Details: ${formData.additionalDetails}`,
+      `User: ${formData.fullName} | ${formData.phoneCode} ${formData.phoneNumber} | ${formData.email}`,
+    ].filter(Boolean).join('\n')
+
+    const result = await zendeskService.submitTicket({
+      formId: formId,
+      slug,
+      fields: {
+        subject: formData.issue,
+        description,
+      },
+    })
+
+    if (result.success) {
+      onSuccess()
+    } else {
+      alert(result.error || 'Submit failed')
+    }
   }
 
   const showConditionalFields = formData.experiencingIssues === 'didnt-end'
 
   return (
-    <FormLayout onBack={() => window.history.back()} onSubmit={handleSubmit}>
+    <FormLayout onBack={() => appBridge.goBack()} onSubmit={handleSubmit}>
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           What is the issue?<span className="text-red-500">*</span>
@@ -124,7 +154,7 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
           value={formData.vehicleNumber}
           onChange={(e) => handleFieldChange('vehicleNumber', e.target.value)}
           placeholder="1234567788998"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent bg-gray-50"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black bg-gray-50"
         />
       </div>
 
@@ -137,7 +167,7 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
           value={formData.rideMinutes}
           onChange={(e) => handleFieldChange('rideMinutes', e.target.value)}
           placeholder="6"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
         />
       </div>
 
@@ -185,7 +215,7 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
               value={formData.errorMessage}
               onChange={(e) => handleFieldChange('errorMessage', e.target.value)}
               placeholder="Enter error message"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black"
             />
           </div>
         </>
@@ -198,7 +228,7 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
             onChange={(e) => handleFieldChange('additionalDetails', e.target.value)}
             placeholder="Enter message"
             rows={4}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none"
           />
         </div>
       )}
@@ -214,7 +244,7 @@ const RideNotEndedForm = ({ onSuccess }: RideNotEndedFormProps) => {
           onChange={(e) => handleFieldChange('additionalDetails', e.target.value)}
           placeholder="Could you provide more details so we can better understand the issue?"
           rows={5}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm text-gray-600"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none text-sm text-gray-600"
         />
       </div>
     </FormLayout>

@@ -7,11 +7,10 @@ import { zendeskService, type ZendeskTicketForm } from '../services/zendesk'
 import { appBridge } from '../services/appBridge'
 
 interface IssueSelectorProps {
-  onSelectIssue: (issue: string) => void
-  onBack: () => void
+  onSelectIssue: (slug: string, formId?: number) => void
 }
 
-const IssueSelector = ({ onSelectIssue, onBack }: IssueSelectorProps) => {
+const IssueSelector = ({ onSelectIssue }: IssueSelectorProps) => {
   const [selectedIssue, setSelectedIssue] = useState<string>('')
   const [issues, setIssues] = useState<ZendeskTicketForm[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,10 +30,25 @@ const IssueSelector = ({ onSelectIssue, onBack }: IssueSelectorProps) => {
     }
   }
 
+  const normalize = (text: string) => text.toLowerCase()
+  const nameToSlug = (name: string) => {
+    const n = normalize(name)
+    if (n.includes("hasn't ended") || n.includes('end ride')) return 'ride-not-ended'
+    if (n.includes("didn't move") || n.includes('damaged')) return 'vehicle-damaged'
+    if (n.includes('charged incorrectly')) return 'charged-incorrectly'
+    if (n.includes('delete my account') || n.includes('delete account')) return 'delete-account'
+    if (n.includes("id won't verify") || n.includes('id verification')) return 'id-verification'
+    return 'other'
+  }
+
   const handleSubmit = () => {
-    if (selectedIssue) {
-      onSelectIssue(selectedIssue)
-    }
+    if (!selectedIssue) return
+    const issueObj = issues.find(i => i.id === selectedIssue)
+    if (!issueObj) return
+    const num = Number(issueObj.id)
+    const isNumeric = Number.isFinite(num)
+    const slug = isNumeric ? nameToSlug(issueObj.name) : issueObj.id
+    onSelectIssue(slug, isNumeric ? num : undefined)
   }
 
   const handleBack = () => {

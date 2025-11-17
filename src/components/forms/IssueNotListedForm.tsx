@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import FormLayout from './FormLayout'
+import { appBridge } from '../../services/appBridge'
 import { BaseFormFields, ImageUpload } from './BaseFormFields'
+import { zendeskService } from '../../services/zendesk'
 
 interface IssueNotListedFormProps {
   onSuccess: () => void
+  formId?: number
+  slug: string
 }
 
-const IssueNotListedForm = ({ onSuccess }: IssueNotListedFormProps) => {
+const IssueNotListedForm = ({ onSuccess, formId, slug }: IssueNotListedFormProps) => {
   const [formData, setFormData] = useState({
     issue: 'I have an issue not on this list',
     fullName: '',
@@ -24,14 +28,34 @@ const IssueNotListedForm = ({ onSuccess }: IssueNotListedFormProps) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted:', formData, images)
-    onSuccess()
+    const description = [
+      `Issue: ${formData.issue}`,
+      `Description: ${formData.description}`,
+      images.length > 0 && `Attached images: ${images.map(f => f.name).join(', ')}`,
+      formData.additionalDetails && `Details: ${formData.additionalDetails}`,
+      `User: ${formData.fullName} | ${formData.phoneCode} ${formData.phoneNumber} | ${formData.email}`,
+    ].filter(Boolean).join('\n')
+
+    const result = await zendeskService.submitTicket({
+      formId: formId,
+      slug,
+      fields: {
+        subject: formData.issue,
+        description,
+      },
+    })
+
+    if (result.success) {
+      onSuccess()
+    } else {
+      alert(result.error || 'Submit failed')
+    }
   }
 
   return (
-    <FormLayout onBack={() => window.history.back()} onSubmit={handleSubmit}>
+    <FormLayout onBack={() => appBridge.goBack()} onSubmit={handleSubmit}>
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           What is the issue?<span className="text-red-500">*</span>
@@ -55,7 +79,7 @@ const IssueNotListedForm = ({ onSuccess }: IssueNotListedFormProps) => {
           onChange={(e) => handleFieldChange('description', e.target.value)}
           placeholder="My issue is........"
           rows={6}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none"
         />
       </div>
 
@@ -70,7 +94,7 @@ const IssueNotListedForm = ({ onSuccess }: IssueNotListedFormProps) => {
           onChange={(e) => handleFieldChange('additionalDetails', e.target.value)}
           placeholder="Could you provide more details so we can better understand the issue?"
           rows={5}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm text-gray-600"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none text-sm text-gray-600"
         />
       </div>
     </FormLayout>

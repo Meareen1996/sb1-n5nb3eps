@@ -1,13 +1,17 @@
 import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import FormLayout from './FormLayout'
-import { BaseFormFields, ImageUpload } from './BaseFormFields'
+import { appBridge } from '../../services/appBridge'
+import { BaseFormFields } from './BaseFormFields'
+import { zendeskService } from '../../services/zendesk'
 
 interface UnableToRideFormProps {
   onSuccess: () => void
+  formId?: number
+  slug: string
 }
 
-const UnableToRideForm = ({ onSuccess }: UnableToRideFormProps) => {
+const UnableToRideForm = ({ onSuccess, formId, slug }: UnableToRideFormProps) => {
   const [formData, setFormData] = useState({
     issue: "My ID won't verify.",
     fullName: '',
@@ -18,7 +22,6 @@ const UnableToRideForm = ({ onSuccess }: UnableToRideFormProps) => {
   })
 
   const [idFiles, setIdFiles] = useState<File[]>([])
-  const [images, setImages] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFieldChange = (field: string, value: string) => {
@@ -35,14 +38,33 @@ const UnableToRideForm = ({ onSuccess }: UnableToRideFormProps) => {
     setIdFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted:', formData, idFiles, images)
-    onSuccess()
+    const description = [
+      `Issue: ${formData.issue}`,
+      `User: ${formData.fullName} | ${formData.phoneCode} ${formData.phoneNumber} | ${formData.email}`,
+      formData.additionalDetails && `Details: ${formData.additionalDetails}`,
+      idFiles.length > 0 && `Attached IDs: ${idFiles.map(f => f.name).join(', ')}`,
+    ].filter(Boolean).join('\n')
+
+    const result = await zendeskService.submitTicket({
+      formId: formId,
+      slug,
+      fields: {
+        subject: formData.issue,
+        description,
+      },
+    })
+
+    if (result.success) {
+      onSuccess()
+    } else {
+      alert(result.error || 'Submit failed')
+    }
   }
 
   return (
-    <FormLayout onBack={() => window.history.back()} onSubmit={handleSubmit}>
+    <FormLayout onBack={() => appBridge.goBack()} onSubmit={handleSubmit}>
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           What is the issue?<span className="text-red-500">*</span>
@@ -113,7 +135,7 @@ const UnableToRideForm = ({ onSuccess }: UnableToRideFormProps) => {
           onChange={(e) => handleFieldChange('additionalDetails', e.target.value)}
           placeholder="Could you provide more details so we can better understand the issue?"
           rows={5}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm text-gray-600"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-0 focus:border-black resize-none text-sm text-gray-600"
         />
       </div>
     </FormLayout>

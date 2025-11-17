@@ -7,27 +7,27 @@ import UnableToRideForm from './forms/UnableToRideForm'
 
 interface FormContainerProps {
   issueType: string
-  onBack: () => void
+  formId?: number
   onSuccess: () => void
 }
 
-const FormContainer = ({ issueType, onSuccess }: FormContainerProps) => {
+const FormContainer = ({ issueType, formId, onSuccess }: FormContainerProps) => {
   const renderForm = () => {
     switch (issueType) {
       case 'ride-not-ended':
-        return <RideNotEndedForm onSuccess={onSuccess} />
+        return <RideNotEndedForm slug={issueType} formId={formId} onSuccess={onSuccess} />
+      case 'vehicle-damaged':
+        return <RideNotMoveForm slug={issueType} formId={formId} onSuccess={onSuccess} />
       case 'charged-incorrectly':
-        return <ChargedIncorrectlyForm onSuccess={onSuccess} />
-      case 'ride-not-move':
-        return <RideNotMoveForm onSuccess={onSuccess} />
+        return <ChargedIncorrectlyForm slug={issueType} formId={formId} onSuccess={onSuccess} />
       case 'delete-account':
-        return <DeleteAccountForm onSuccess={onSuccess} />
-      case 'unable-to-ride':
-        return <UnableToRideForm onSuccess={onSuccess} />
-      case 'issue-not-listed':
-        return <IssueNotListedForm onSuccess={onSuccess} />
+        return <DeleteAccountForm slug={issueType} formId={formId} onSuccess={onSuccess} />
+      case 'id-verification':
+        return <UnableToRideForm slug={issueType} formId={formId} onSuccess={onSuccess} />
+      case 'other':
+        return <IssueNotListedForm slug={issueType} formId={formId} onSuccess={onSuccess} />
       default:
-        return null
+        return <IssueNotListedForm formId={formId} onSuccess={onSuccess} />
     }
   }
 
